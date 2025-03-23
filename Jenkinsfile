@@ -56,8 +56,14 @@ node {
         }
     }
 
+    stage('Run Docker Container on Port 8081') {
+        echo 'Running Docker container on port 8081'
+        sh "${dockerCMD} run -d -p 8081:8080 aakki2503/insure-me:${tagName}"
+    }
+
     stage('Configure and Deploy to the Test Server') {
         echo 'Deploying using Ansible'
         ansiblePlaybook become: true, credentialsId: 'ansible-key', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
     }
 } 
+
