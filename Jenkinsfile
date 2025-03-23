@@ -1,64 +1,63 @@
-node{
+node {
     
     def mavenHome
     def mavenCMD
-    def docker
     def dockerCMD
     def tagName
     
-    stage('prepare environment') {
-    echo 'initialize all the variables'
-    mavenHome = tool name: 'maven', type: 'maven'
-    mavenCMD = "${mavenHome}/bin/mvn"
-    dockerCMD = '/usr/bin/docker' // Correct Docker path
-    tagName = "3.0"
-}
+    stage('Prepare Environment') {
+        echo 'Initializing all the variables'
+        mavenHome = tool name: 'maven', type: 'maven'
+        mavenCMD = "${mavenHome}/bin/mvn"
+        dockerCMD = '/usr/bin/docker' // Correct Docker path
+        tagName = "3.0"
+    }
 
-    stage('git code checkout'){
-        try{
-            echo 'checkout the code from git repository'
+    stage('Git Code Checkout') {
+        try {
+            echo 'Checking out the code from Git repository'
             git 'https://github.com/dhanshettiaakash/star-agile-insurance-project'
-        }
-        catch(Exception e){
-            echo 'Exception occured in Git Code Checkout Stage'
+        } catch (Exception e) {
+            echo 'Exception occurred in Git Code Checkout Stage'
             currentBuild.result = "FAILURE"
             emailext body: '''Dear All,
-            The Jenkins job ${JOB_NAME} has been failed. Request you to please have a look at it immediately by clicking on the below link. 
-            ${BUILD_URL}''', subject: 'Job ${JOB_NAME} ${BUILD_NUMBER} is failed', to: 'shubham@gmail.com'
+            The Jenkins job ${JOB_NAME} has failed. Please check it immediately by clicking on the below link.
+            ${BUILD_URL}''', subject: 'Job ${JOB_NAME} ${BUILD_NUMBER} failed', to: 'shubham@gmail.com'
+            error 'Git checkout failed'
         }
     }
-    
-    stage('Build the Application'){
-        echo "Cleaning... Compiling...Testing... Packaging..."
-        //sh 'mvn clean package'
+
+    stage('Build the Application') {
+        echo "Cleaning, Compiling, Testing, and Packaging the application"
         sh "${mavenCMD} clean package"        
     }
-    
-    stage('publish test reports'){
-        publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: '/var/lib/jenkins/workspace/Capstone-Project-Live-Demo/target/surefire-reports', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+
+    stage('Publish Test Reports') {
+        publishHTML([
+            allowMissing: false, 
+            alwaysLinkToLastBuild: false, 
+            keepAll: false, 
+            reportDir: 'target/surefire-reports', 
+            reportFiles: 'index.html', 
+            reportName: 'HTML Report'
+        ])
     }
-    
-    stage('Containerize the application'){
+
+    stage('Containerize the Application') {
         echo 'Creating Docker image'
         sh "${dockerCMD} build -t aakki2503/insure-me:${tagName} ."
     }
-    
-    stage('Pushing it ot the DockerHub'){
-        echo 'Pushing the docker image to DockerHub'
-        withCredentials([string(credentialsId: 'dock-password', variable: 'dockerHubPassword')]) {
-        sh "${dockerCMD} login -u aakki2503 -p ${dockerHubPassword}"
-        sh "${dockerCMD} push aakki2503/insure-me:${tagName}"
-            
+
+    stage('Push to DockerHub') {
+        echo 'Pushing the Docker image to DockerHub'
+        withCredentials([usernamePassword(credentialsId: 'dock-password', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh "${dockerCMD} login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+            sh "${dockerCMD} push aakki2503/insure-me:${tagName}"
         }
-        
-    stage('Configure and Deploy to the test-server'){
+    }
+
+    stage('Configure and Deploy to the Test Server') {
+        echo 'Deploying using Ansible'
         ansiblePlaybook become: true, credentialsId: 'ansible-key', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
     }
-        
-        
-    }
-}
-
-
-
-
+} 
